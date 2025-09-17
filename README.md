@@ -46,21 +46,8 @@ Ensure all files are in your project directory:
 
 ---
 
-### 2. Create a Virtual Environment (Recommended)
 
-```bash
-# Windows
-python -m venv venv
-venv\Scripts\activate
-
-# macOS/Linux
-python3 -m venv venv
-source venv/bin/activate
-```
-
----
-
-### 3. Install Required Packages
+### 2. Install Required Packages
 
 ```bash
 pip install Flask Flask-Cors pandas numpy scikit-learn xgboost lightgbm tldextract
