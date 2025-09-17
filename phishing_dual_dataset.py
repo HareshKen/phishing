@@ -18,204 +18,255 @@ import lightgbm as lgb
 from sklearn.neural_network import MLPClassifier
 from sklearn.calibration import CalibratedClassifierCV
 import pickle
+import socket
+import tldextract
 
 warnings.filterwarnings("ignore")
 print("🎯 Advanced Phishing URL Detection System v3.0")
-print("🔄 Training with Multiple Datasets")
+print("🔄 Training with Predefined Feature Set")
 
 # =========================
-# Enhanced URL Feature Engineering
+# Enhanced URL Feature Engineering with Predefined Features
 # =========================
 
-def calculate_shannon_entropy(text):
-    """Calculate Shannon entropy of a string"""
-    if not text:
+def is_ip_address(hostname):
+    """Check if hostname is an IP address"""
+    try:
+        socket.inet_aton(hostname)
+        return 1
+    except socket.error:
         return 0
-    counter = Counter(text)
-    length = len(text)
-    entropy = -sum(count/length * math.log2(count/length) for count in counter.values())
-    return entropy
 
-def get_tld_features(domain):
-    """Extract TLD-based features"""
+def get_tld_info(domain):
+    """Get TLD information using tldextract"""
+    try:
+        extracted = tldextract.extract(domain)
+        return extracted.domain, extracted.suffix, extracted.subdomain
+    except:
+        return domain, "", ""
+
+def extract_predefined_url_features(url):
+    """Extract the predefined feature set from URL"""
     features = {}
     
-    # Suspicious TLDs (high phishing correlation)
-    suspicious_tlds = ['.tk', '.ml', '.ga', '.cf', '.click', '.download', '.work', 
-                       '.loan', '.cricket', '.science', '.party', '.date', '.racing',
-                       '.accountant', '.review', '.country', '.stream', '.trade']
+    # Initialize all features to 0
+    feature_names = [
+        'length_url', 'length_hostname', 'ip', 'nb_dots', 'nb_hyphens', 'nb_at', 
+        'nb_qm', 'nb_and', 'nb_or', 'nb_eq', 'nb_underscore', 'nb_tilde', 
+        'nb_percent', 'nb_slash', 'nb_star', 'nb_colon', 'nb_comma', 
+        'nb_semicolumn', 'nb_dollar', 'nb_space', 'nb_www', 'nb_com', 
+        'nb_dslash', 'http_in_path', 'https_token', 'ratio_digits_url', 
+        'ratio_digits_host', 'punycode', 'port', 'tld_in_path', 
+        'tld_in_subdomain', 'abnormal_subdomain', 'nb_subdomains', 
+        'prefix_suffix', 'random_domain', 'shortening_service', 
+        'path_extension', 'nb_redirection', 'nb_external_redirection', 
+        'length_words_raw', 'char_repeat', 'shortest_words_raw', 
+        'shortest_word_host', 'shortest_word_path', 'longest_words_raw', 
+        'longest_word_host', 'longest_word_path', 'avg_words_raw', 
+        'avg_word_host', 'avg_word_path', 'phish_hints', 'domain_in_brand', 
+        'brand_in_subdomain', 'brand_in_path', 'suspecious_tld', 
+        'statistical_report', 'nb_hyperlinks', 'ratio_intHyperlinks', 
+        'ratio_extHyperlinks', 'ratio_nullHyperlinks', 'nb_extCSS', 
+        'ratio_intRedirection', 'ratio_extRedirection', 'ratio_intErrors', 
+        'ratio_extErrors', 'login_form', 'external_favicon', 'links_in_tags', 
+        'submit_email', 'ratio_intMedia', 'ratio_extMedia', 'sfh', 'iframe', 
+        'popup_window', 'safe_anchor', 'onmouseover', 'right_clic', 
+        'empty_title', 'domain_in_title', 'domain_with_copyright', 
+        'whois_registered_domain', 'domain_registration_length', 'domain_age', 
+        'web_traffic', 'dns_record', 'google_index', 'page_rank'
+    ]
     
-    # Legitimate TLDs (commonly used by legitimate sites)
-    legitimate_tlds = ['.com', '.org', '.net', '.edu', '.gov', '.mil', '.int',
-                       '.co.uk', '.de', '.fr', '.jp', '.ca', '.au', '.in']
-    
-    features['has_suspicious_tld'] = 1 if any(domain.endswith(tld) for tld in suspicious_tlds) else 0
-    features['has_legitimate_tld'] = 1 if any(domain.endswith(tld) for tld in legitimate_tlds) else 0
-    features['tld_length'] = len(domain.split('.')[-1]) if '.' in domain else 0
-    
-    return features
-
-def get_lexical_features(url):
-    """Advanced lexical analysis"""
-    features = {}
-    
-    # Character distribution analysis
-    chars = list(url.lower())
-    features['unique_char_ratio'] = len(set(chars)) / len(chars) if chars else 0
-    
-    # Vowel/consonant analysis
-    vowels = 'aeiou'
-    vowel_count = sum(1 for c in url.lower() if c in vowels)
-    consonant_count = sum(1 for c in url.lower() if c.isalpha() and c not in vowels)
-    features['vowel_consonant_ratio'] = vowel_count / max(consonant_count, 1)
-    
-    return features
-
-def get_domain_analysis(domain):
-    """Deep domain analysis"""
-    features = {}
-    
-    if not domain:
-        return {f'domain_feature_{i}': 0 for i in range(10)}
-    
-    parts = domain.split('.')
-    
-    # Subdomain analysis
-    features['subdomain_count'] = len(parts) - 2 if len(parts) >= 2 else 0
-    features['max_subdomain_length'] = max([len(part) for part in parts[:-2]]) if len(parts) > 2 else 0
-    features['avg_subdomain_length'] = np.mean([len(part) for part in parts[:-2]]) if len(parts) > 2 else 0
-    
-    # Domain length analysis
-    main_domain = parts[-2] if len(parts) >= 2 else domain
-    features['main_domain_length'] = len(main_domain)
-    features['main_domain_entropy'] = calculate_shannon_entropy(main_domain)
-    
-    # Check for domain squatting patterns
-    common_domains = ['google', 'facebook', 'amazon', 'microsoft', 'apple', 'paypal', 
-                     'ebay', 'netflix', 'instagram', 'twitter', 'linkedin', 'yahoo']
-    
-    features['similar_to_popular'] = 0
-    for popular in common_domains:
-        if popular in main_domain.lower() and main_domain.lower() != popular:
-            features['similar_to_popular'] = 1
-            break
-    
-    # Homograph attack detection (simplified)
-    suspicious_chars = ['о', '0', 'е', 'а', 'р', 'у', 'х', 'с']  # Cyrillic lookalikes
-    features['has_suspicious_chars'] = 1 if any(char in domain for char in suspicious_chars) else 0
-    
-    return features
-
-def extract_advanced_url_features(url, domain_age=None, https_present=None, url_length=None):
-    """Extract comprehensive features with improved accuracy"""
-    features = {}
+    for name in feature_names:
+        features[name] = 0
     
     try:
-        parsed = urlparse(url.lower() if url.startswith('http') else f'http://{url.lower()}')
-        domain = parsed.netloc
+        # Ensure URL has protocol
+        if not url.startswith(('http://', 'https://')):
+            url = 'http://' + url
+            
+        parsed = urlparse(url.lower())
+        hostname = parsed.netloc
         path = parsed.path
         query = parsed.query
-        fragment = parsed.fragment
         
-        # Basic metrics
-        features['url_length'] = len(url) if url_length is None else url_length
-        features['domain_length'] = len(domain)
-        features['path_length'] = len(path)
-        features['query_length'] = len(query)
+        # Basic URL features
+        features['length_url'] = len(url)
+        features['length_hostname'] = len(hostname)
         
-        # Add dataset features if provided
-        if domain_age is not None:
-            features['domain_age'] = domain_age
-        if https_present is not None:
-            features['https_present'] = https_present
+        # IP address check
+        features['ip'] = is_ip_address(hostname.split(':')[0])  # Remove port for IP check
         
-        # Character analysis
-        features['digit_count'] = sum(c.isdigit() for c in url)
-        features['alpha_count'] = sum(c.isalpha() for c in url)
-        features['special_char_count'] = len(url) - features['digit_count'] - features['alpha_count']
-        features['digit_ratio'] = features['digit_count'] / len(url) if url else 0
-        features['alpha_ratio'] = features['alpha_count'] / len(url) if url else 0
+        # Character counts
+        features['nb_dots'] = url.count('.')
+        features['nb_hyphens'] = url.count('-')
+        features['nb_at'] = url.count('@')
+        features['nb_qm'] = url.count('?')
+        features['nb_and'] = url.count('&')
+        features['nb_or'] = url.count('|')
+        features['nb_eq'] = url.count('=')
+        features['nb_underscore'] = url.count('_')
+        features['nb_tilde'] = url.count('~')
+        features['nb_percent'] = url.count('%')
+        features['nb_slash'] = url.count('/')
+        features['nb_star'] = url.count('*')
+        features['nb_colon'] = url.count(':')
+        features['nb_comma'] = url.count(',')
+        features['nb_semicolumn'] = url.count(';')
+        features['nb_dollar'] = url.count('$')
+        features['nb_space'] = url.count(' ')
         
-        # Entropy features
-        features['url_entropy'] = calculate_shannon_entropy(url)
-        features['domain_entropy'] = calculate_shannon_entropy(domain)
-        features['path_entropy'] = calculate_shannon_entropy(path)
+        # Specific substring counts
+        features['nb_www'] = url.lower().count('www')
+        features['nb_com'] = url.lower().count('.com')
+        features['nb_dslash'] = url.count('//')
         
-        # Special character counts
-        special_chars = ['-', '_', '.', '/', '?', '=', '&', '%', '+', '~', '#']
-        for char in special_chars:
-            features[f'{char}_count'] = url.count(char)
+        # Protocol and path checks
+        features['http_in_path'] = 1 if 'http' in path else 0
+        features['https_token'] = 1 if 'https' in url.lower() and url.startswith('http://') else 0
         
-        # Protocol analysis
-        features['https_used'] = 1 if url.startswith('https://') else 0
-        features['has_port'] = 1 if ':' in domain and not domain.startswith('www') else 0
-        features['has_ip'] = 1 if re.search(r'\b\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}\b', domain) else 0
+        # Digit ratios
+        url_digits = sum(c.isdigit() for c in url)
+        features['ratio_digits_url'] = url_digits / len(url) if url else 0
         
-        # URL shortener detection
+        host_digits = sum(c.isdigit() for c in hostname)
+        features['ratio_digits_host'] = host_digits / len(hostname) if hostname else 0
+        
+        # Punycode check
+        features['punycode'] = 1 if 'xn--' in hostname else 0
+        
+        # Port check
+        features['port'] = 1 if ':' in hostname and not hostname.startswith('www') else 0
+        
+        # TLD features
+        domain_part, tld, subdomain = get_tld_info(hostname)
+        features['tld_in_path'] = 1 if tld and tld in path else 0
+        features['tld_in_subdomain'] = 1 if tld and tld in subdomain else 0
+        
+        # Subdomain features
+        subdomains = hostname.split('.')[:-2] if len(hostname.split('.')) > 2 else []
+        features['nb_subdomains'] = len(subdomains)
+        features['abnormal_subdomain'] = 1 if len(subdomains) > 3 else 0
+        
+        # Prefix-suffix check
+        features['prefix_suffix'] = 1 if '-' in domain_part else 0
+        
+        # Random domain check (simple heuristic)
+        if domain_part:
+            vowels = sum(1 for c in domain_part if c in 'aeiou')
+            consonants = sum(1 for c in domain_part if c.isalpha() and c not in 'aeiou')
+            features['random_domain'] = 1 if vowels == 0 and consonants > 5 else 0
+        
+        # URL shortening services
         shorteners = ['bit.ly', 'tinyurl', 't.co', 'goo.gl', 'ow.ly', 'short.link', 
                      'is.gd', 'tiny.cc', 'adf.ly', 'shorturl.at']
-        features['is_shortened'] = 1 if any(shortener in domain for shortener in shorteners) else 0
+        features['shortening_service'] = 1 if any(shortener in hostname for shortener in shorteners) else 0
         
-        # Suspicious keyword analysis
-        phishing_keywords = {
-            'financial': ['secure', 'verify', 'account', 'login', 'update', 'confirm', 'suspend'],
-            'brands': ['paypal', 'amazon', 'microsoft', 'apple', 'google', 'facebook', 'ebay'],
-            'urgency': ['urgent', 'immediate', 'expire', 'suspend', 'block', 'alert', 'warning'],
-            'deception': ['official', 'security', 'service', 'support', 'help', 'center']
-        }
+        # Path extension
+        path_parts = path.split('.')
+        if len(path_parts) > 1:
+            extension = path_parts[-1].lower()
+            features['path_extension'] = 1 if extension in ['exe', 'zip', 'rar'] else 0
         
-        for category, keywords in phishing_keywords.items():
-            features[f'{category}_keywords'] = sum(1 for word in keywords if word in url.lower())
+        # Redirection (simplified - would need actual HTTP requests for accuracy)
+        features['nb_redirection'] = 0  # Placeholder
+        features['nb_external_redirection'] = 0  # Placeholder
         
-        # Path analysis
-        if path:
-            path_parts = [part for part in path.split('/') if part]
-            features['path_depth'] = len(path_parts)
-            features['avg_path_length'] = np.mean([len(part) for part in path_parts]) if path_parts else 0
-            features['max_path_length'] = max([len(part) for part in path_parts]) if path_parts else 0
-        else:
-            features['path_depth'] = 0
-            features['avg_path_length'] = 0
-            features['max_path_length'] = 0
+        # Word analysis
+        url_words = re.findall(r'[a-zA-Z]+', url)
+        if url_words:
+            features['length_words_raw'] = sum(len(word) for word in url_words)
+            features['shortest_words_raw'] = min(len(word) for word in url_words)
+            features['longest_words_raw'] = max(len(word) for word in url_words)
+            features['avg_words_raw'] = features['length_words_raw'] / len(url_words)
         
-        # Query analysis
-        if query:
-            params = parse_qs(query)
-            features['param_count'] = len(params)
-            features['max_param_length'] = max([len(str(v)) for v in params.values()]) if params else 0
-            features['has_suspicious_params'] = 1 if any(param in ['redirect', 'url', 'link', 'goto'] 
-                                                        for param in params.keys()) else 0
-        else:
-            features['param_count'] = 0
-            features['max_param_length'] = 0
-            features['has_suspicious_params'] = 0
+        hostname_words = re.findall(r'[a-zA-Z]+', hostname)
+        if hostname_words:
+            features['shortest_word_host'] = min(len(word) for word in hostname_words)
+            features['longest_word_host'] = max(len(word) for word in hostname_words)
+            features['avg_word_host'] = sum(len(word) for word in hostname_words) / len(hostname_words)
         
-        # Add TLD features
-        tld_features = get_tld_features(domain)
-        features.update(tld_features)
+        path_words = re.findall(r'[a-zA-Z]+', path)
+        if path_words:
+            features['shortest_word_path'] = min(len(word) for word in path_words)
+            features['longest_word_path'] = max(len(word) for word in path_words)
+            features['avg_word_path'] = sum(len(word) for word in path_words) / len(path_words)
         
-        # Add lexical features
-        lexical_features = get_lexical_features(url)
-        features.update(lexical_features)
+        # Character repetition check
+        char_counts = Counter(url.lower())
+        max_char_repeat = max(char_counts.values()) if char_counts else 0
+        features['char_repeat'] = 1 if max_char_repeat > 3 else 0
         
-        # Add domain analysis
-        domain_features = get_domain_analysis(domain)
-        features.update(domain_features)
+        # Phishing hints
+        phish_keywords = ['secure', 'verify', 'account', 'login', 'update', 'confirm', 
+                         'suspend', 'urgent', 'click', 'winner', 'prize']
+        features['phish_hints'] = sum(1 for word in phish_keywords if word in url.lower())
         
-        # Ratio features
-        features['subdomain_to_domain_ratio'] = (features.get('subdomain_count', 0) / 
-                                               max(features['domain_length'], 1))
-        features['query_to_url_ratio'] = features['query_length'] / max(features['url_length'], 1)
-        features['path_to_url_ratio'] = features['path_length'] / max(features['url_length'], 1)
+        # Brand analysis
+        popular_brands = ['google', 'facebook', 'amazon', 'microsoft', 'apple', 
+                         'paypal', 'ebay', 'netflix', 'instagram', 'twitter']
+        
+        features['domain_in_brand'] = 0
+        features['brand_in_subdomain'] = 0
+        features['brand_in_path'] = 0
+        
+        for brand in popular_brands:
+            if brand in domain_part.lower() and domain_part.lower() != brand:
+                features['domain_in_brand'] = 1
+            if brand in subdomain.lower():
+                features['brand_in_subdomain'] = 1
+            if brand in path.lower():
+                features['brand_in_path'] = 1
+        
+        # Suspicious TLD
+        suspicious_tlds = ['.tk', '.ml', '.ga', '.cf', '.click', '.download']
+        features['suspecious_tld'] = 1 if any(tld_s in url.lower() for tld_s in suspicious_tlds) else 0
+        
+        # Web-based features (would need actual web scraping for accuracy)
+        # Setting placeholders for now
+        features['statistical_report'] = 0
+        features['nb_hyperlinks'] = 0
+        features['ratio_intHyperlinks'] = 0
+        features['ratio_extHyperlinks'] = 0
+        features['ratio_nullHyperlinks'] = 0
+        features['nb_extCSS'] = 0
+        features['ratio_intRedirection'] = 0
+        features['ratio_extRedirection'] = 0
+        features['ratio_intErrors'] = 0
+        features['ratio_extErrors'] = 0
+        features['login_form'] = 0
+        features['external_favicon'] = 0
+        features['links_in_tags'] = 0
+        features['submit_email'] = 0
+        features['ratio_intMedia'] = 0
+        features['ratio_extMedia'] = 0
+        features['sfh'] = 0
+        features['iframe'] = 0
+        features['popup_window'] = 0
+        features['safe_anchor'] = 0
+        features['onmouseover'] = 0
+        features['right_clic'] = 0
+        features['empty_title'] = 0
+        features['domain_in_title'] = 0
+        features['domain_with_copyright'] = 0
+        
+        # Domain registration features (placeholders)
+        features['whois_registered_domain'] = 1  # Assume registered
+        features['domain_registration_length'] = 365  # Default 1 year
+        features['domain_age'] = np.random.randint(1, 1000)  # Placeholder
+        features['web_traffic'] = np.random.randint(0, 1000000)  # Placeholder
+        features['dns_record'] = 1  # Assume has DNS record
+        features['google_index'] = 1  # Assume indexed
+        features['page_rank'] = np.random.randint(0, 10)  # Placeholder
         
     except Exception as e:
         print(f"Error parsing URL {url}: {e}")
-        return {f'feature_{i}': 0 for i in range(50)}
+        # Return zeros for all features in case of error
+        pass
     
     return features
 
-def process_dataset(df, desc="Processing URLs"):
-    """Process dataset with enhanced feature extraction"""
+def process_dataset_with_predefined_features(df, desc="Processing URLs"):
+    """Process dataset with predefined feature extraction"""
     print(f"🔄 {desc}...")
     feature_list = []
     
@@ -224,11 +275,7 @@ def process_dataset(df, desc="Processing URLs"):
             print(f"   Processed {i}/{len(df)} URLs...")
         
         url = str(row['URL'])
-        domain_age = row.get('domain_age', None)
-        https_present = row.get('https_present', None)
-        url_length = row.get('url_length', None)
-        
-        features = extract_advanced_url_features(url, domain_age, https_present, url_length)
+        features = extract_predefined_url_features(url)
         feature_list.append(features)
     
     # Convert to DataFrame
@@ -237,87 +284,53 @@ def process_dataset(df, desc="Processing URLs"):
     # Handle missing values
     feature_df = feature_df.fillna(0)
     
-    # Remove constant features
-    constant_features = [col for col in feature_df.columns if feature_df[col].nunique() <= 1]
-    feature_df = feature_df.drop(columns=constant_features)
-    
-    print(f"✅ Extracted {feature_df.shape[1]} features from {len(df)} URLs")
+    print(f"✅ Extracted {feature_df.shape[1]} predefined features from {len(df)} URLs")
     return feature_df
 
 # =========================
-# Load and Prepare Data from Both Datasets
+# Load and Prepare Data
 # =========================
-print("\n📂 Loading datasets...")
+print("\n📂 Loading training dataset...")
 
-# Load first dataset
 try:
-    train_df1 = pd.read_csv("dataset_phishing.csv")
-    print(f"Dataset 1 (dataset_phishing.csv): {train_df1.shape[0]} URLs")
+    # Load the training dataset
+    df = pd.read_csv("dataset_phishing.csv")
+    print(f"Loaded training dataset: {df.shape[0]} URLs")
     
-    # Clean and standardize first dataset
-    train_df1 = train_df1.dropna(subset=['URL', 'label']).reset_index(drop=True)
-    train_df1['label'] = train_df1['label'].astype(int)
+    # Clean the dataset
+    df = df.dropna(subset=['URL', 'label']).reset_index(drop=True)
+    df['label'] = df['label'].astype(int)
     
-    # Add missing columns with default values if needed
-    if 'domain_age' not in train_df1.columns:
-        train_df1['domain_age'] = 0
-    if 'https_present' not in train_df1.columns:
-        train_df1['https_present'] = train_df1['URL'].apply(lambda x: 1 if str(x).startswith('https://') else 0)
-    if 'url_length' not in train_df1.columns:
-        train_df1['url_length'] = train_df1['URL'].apply(len)
+    print(f"After cleaning: {df.shape[0]} URLs")
+    print(f"Label distribution: {Counter(df['label'])}")
+    
+    # Balance the dataset if needed
+    label_counts = Counter(df['label'])
+    min_class_size = min(label_counts.values())
+    
+    # Sample equal amounts from each class
+    balanced_df = pd.concat([
+        df[df['label'] == 0].sample(n=min(min_class_size, 10000), random_state=42),
+        df[df['label'] == 1].sample(n=min(min_class_size, 10000), random_state=42)
+    ]).reset_index(drop=True)
+    
+    print(f"Balanced training dataset: {balanced_df.shape[0]} URLs")
+    print(f"Balanced distribution: {Counter(balanced_df['label'])}")
     
 except FileNotFoundError:
-    print("⚠️ dataset_phishing.csv not found, creating empty DataFrame")
-    train_df1 = pd.DataFrame(columns=['URL', 'label', 'domain_age', 'https_present', 'url_length'])
-
-# Load second dataset
-try:
-    train_df2 = pd.read_csv("dataset.csv")
-    print(f"Dataset 2 (dataset.csv): {train_df2.shape[0]} URLs")
-    
-    # Clean and standardize second dataset
-    train_df2 = train_df2.dropna(subset=['URL', 'label']).reset_index(drop=True)
-    train_df2['label'] = train_df2['label'].astype(int)
-    
-    # Ensure all required columns exist
-    required_columns = ['domain_age', 'https_present', 'url_length']
-    for col in required_columns:
-        if col not in train_df2.columns:
-            if col == 'https_present':
-                train_df2[col] = train_df2['URL'].apply(lambda x: 1 if str(x).startswith('https://') else 0)
-            elif col == 'url_length':
-                train_df2[col] = train_df2['URL'].apply(len)
-            else:
-                train_df2[col] = 0
-    
-except FileNotFoundError:
-    print("⚠️ dataset.csv not found, creating empty DataFrame")
-    train_df2 = pd.DataFrame(columns=['URL', 'label', 'domain_age', 'https_present', 'url_length'])
-
-# Combine datasets
-if not train_df1.empty and not train_df2.empty:
-    combined_df = pd.concat([train_df1, train_df2], ignore_index=True)
-elif not train_df1.empty:
-    combined_df = train_df1.copy()
-elif not train_df2.empty:
-    combined_df = train_df2.copy()
-else:
-    print("❌ No valid datasets found!")
+    print("❌ dataset_phishing.csv not found!")
+    print("Please ensure the dataset file is in the same directory as this script.")
+    exit()
+except Exception as e:
+    print(f"❌ Error loading dataset: {e}")
     exit()
 
-print(f"Combined dataset: {combined_df.shape[0]} URLs")
-print(f"Combined distribution: {Counter(combined_df['label'])}")
+# =========================
+# Prepare Test Data from Provided URL Lists
+# =========================
+print("\n📂 Preparing test dataset from provided URLs...")
 
-# Balance the dataset
-min_class_size = min(Counter(combined_df['label']).values())
-train_balanced = pd.concat([
-    combined_df[combined_df['label'] == 0].sample(n=min(min_class_size, 5000), random_state=42),
-    combined_df[combined_df['label'] == 1].sample(n=min(min_class_size, 5000), random_state=42)
-]).reset_index(drop=True)
-
-print(f"Balanced training set: {Counter(train_balanced['label'])}")
-
-# Hardcoded test dataset
+# Legitimate URLs from the provided list
 legitimate_urls = [
     'https://www.google.com', 'https://www.youtube.com', 'https://www.wikipedia.org', 'https://www.amazon.com',
     'https://www.facebook.com', 'https://www.twitter.com', 'https://www.instagram.com', 'https://www.linkedin.com',
@@ -678,72 +691,65 @@ phishing_urls = [
     'http://facebook-com-confirm-identity-page.link/checkpoint/entry', 'http://appleid-apple-com-manage-your-account.xyz/account/manage'
 ]
 
-# Create test dataset with realistic features
+# Create test dataset
 test_data = []
 for url in legitimate_urls:
-    test_data.append({
-        'URL': url, 
-        'label': 1,
-        'domain_age': np.random.randint(365, 3650),  # 1-10 years
-        'https_present': 1 if url.startswith('https://') else 0,
-        'url_length': len(url)
-    })
+    test_data.append({'URL': url, 'label': 1})
 
 for url in phishing_urls:
-    test_data.append({
-        'URL': url, 
-        'label': 0,
-        'domain_age': np.random.randint(1, 30),  # Very new domains
-        'https_present': 1 if url.startswith('https://') else 0,
-        'url_length': len(url)
-    })
+    test_data.append({'URL': url, 'label': 0})
 
 test_df = pd.DataFrame(test_data).sample(frac=1, random_state=42).reset_index(drop=True)
-print(f"Test data: {test_df.shape[0]} URLs")
+print(f"Test dataset created: {test_df.shape[0]} URLs")
 print(f"Test distribution: {Counter(test_df['label'])}")
 
 # =========================
 # Feature Engineering
 # =========================
-X_train_features = process_dataset(train_balanced, "Extracting training features")
-X_test_features = process_dataset(test_df, "Extracting test features")
+print("\n🔧 Extracting features from training dataset...")
+X_train_features = process_dataset_with_predefined_features(balanced_df, "Extracting features from training dataset")
+y_train = balanced_df['label']
 
-y_train = train_balanced['label']
+print("\n🔧 Extracting features from test dataset...")
+X_test_features = process_dataset_with_predefined_features(test_df, "Extracting features from test dataset")
 y_test = test_df['label']
 
-# Ensure consistent features
+# Ensure both datasets have the same features
 common_features = list(set(X_train_features.columns) & set(X_test_features.columns))
 X_train_features = X_train_features[common_features]
 X_test_features = X_test_features[common_features]
 
-print(f"Final feature count: {len(common_features)}")
+print(f"Training set: {X_train_features.shape[0]} samples with {len(common_features)} features")
+print(f"Test set: {X_test_features.shape[0]} samples with {len(common_features)} features")
 
 # Feature scaling
+print("\n⚖️ Scaling features...")
 scaler = RobustScaler()
 X_train_scaled = scaler.fit_transform(X_train_features)
 X_test_scaled = scaler.transform(X_test_features)
 
 # Feature selection
-print("\n🎯 Advanced feature selection...")
-selector = SelectKBest(score_func=f_classif, k=min(40, len(common_features)))
+print("\n🎯 Selecting best features...")
+selector = SelectKBest(score_func=f_classif, k=min(50, X_train_features.shape[1]))
 X_train_selected = selector.fit_transform(X_train_scaled, y_train)
 X_test_selected = selector.transform(X_test_scaled)
 
 selected_features = selector.get_support(indices=True)
 selected_feature_names = [common_features[i] for i in selected_features]
 
-print(f"Selected {X_train_selected.shape[1]} features for training")
+print(f"Selected {X_train_selected.shape[1]} best features")
+print("Top 10 selected features:", selected_feature_names[:10])
 
 # =========================
-# Enhanced Model Training
+# Model Training
 # =========================
-print("\n🚀 Building advanced ensemble model...")
+print("\n🚀 Training ensemble model...")
 
-# Optimized models
+# Define optimized models
 models = {
     'rf': RandomForestClassifier(
-        n_estimators=200, 
-        max_depth=15, 
+        n_estimators=200,
+        max_depth=15,
         min_samples_split=5,
         min_samples_leaf=2,
         class_weight='balanced',
@@ -781,7 +787,8 @@ for name, model in models.items():
     model.fit(X_train_selected, y_train)
     trained_models[name] = model
 
-# Create ensemble
+# Create and train ensemble
+print("Creating ensemble...")
 ensemble = VotingClassifier(
     estimators=[(name, model) for name, model in trained_models.items()],
     voting='soft'
@@ -790,47 +797,63 @@ ensemble = VotingClassifier(
 ensemble.fit(X_train_selected, y_train)
 
 # =========================
-# Final Evaluation
+# Model Evaluation
 # =========================
 print("\n" + "="*60)
-print("📊 FINAL MODEL EVALUATION")
+print("📊 MODEL EVALUATION RESULTS")
 print("="*60)
 
-# Ensemble predictions
-y_pred_ensemble = ensemble.predict(X_test_selected)
-y_prob_ensemble = ensemble.predict_proba(X_test_selected)[:, 1]
+# Make predictions
+y_pred = ensemble.predict(X_test_selected)
+y_prob = ensemble.predict_proba(X_test_selected)[:, 1]
 
-acc_ensemble = accuracy_score(y_test, y_pred_ensemble)
-prec_ensemble = precision_score(y_test, y_pred_ensemble)
-rec_ensemble = recall_score(y_test, y_pred_ensemble)
-f1_ensemble = f1_score(y_test, y_pred_ensemble)
+# Calculate metrics
+accuracy = accuracy_score(y_test, y_pred)
+precision = precision_score(y_test, y_pred)
+recall = recall_score(y_test, y_pred)
+f1 = f1_score(y_test, y_pred)
 
 print(f"\n🎯 ENSEMBLE PERFORMANCE:")
-print(f"   Accuracy:  {acc_ensemble:.3f}")
-print(f"   Precision: {prec_ensemble:.3f}")
-print(f"   Recall:    {rec_ensemble:.3f}")
-print(f"   F1-Score:  {f1_ensemble:.3f}")
+print(f"   Accuracy:  {accuracy:.3f}")
+print(f"   Precision: {precision:.3f}")
+print(f"   Recall:    {recall:.3f}")
+print(f"   F1-Score:  {f1:.3f}")
 
 print("\n📋 Detailed Classification Report:")
-print(classification_report(y_test, y_pred_ensemble, 
-                          target_names=['Phishing', 'Legitimate']))
+print(classification_report(y_test, y_pred, target_names=['Phishing', 'Legitimate']))
+
+# Feature importance from Random Forest
+if 'rf' in trained_models:
+    rf_importance = trained_models['rf'].feature_importances_
+    feature_importance_df = pd.DataFrame({
+        'feature': selected_feature_names,
+        'importance': rf_importance
+    }).sort_values('importance', ascending=False)
+    
+    print("\n🏆 Top 10 Most Important Features:")
+    for i, (_, row) in enumerate(feature_importance_df.head(10).iterrows()):
+        print(f"   {i+1:2d}. {row['feature']:25} ({row['importance']:.4f})")
 
 # Sample predictions
-print("\n🔍 Sample Predictions:")
-for i in range(min(10, len(test_df))):
-    url = test_df.iloc[i]['URL']
-    true_label = y_test.iloc[i]
-    pred_label = y_pred_ensemble[i]
-    pred_prob = y_prob_ensemble[i]
+print("\n🔍 Sample Predictions on Test URLs:")
+sample_size = min(20, len(test_df))
+
+for idx in range(sample_size):
+    url = test_df.iloc[idx]['URL']
+    true_label = y_test.iloc[idx]
+    pred_label = y_pred[idx]
+    pred_prob = y_prob[idx]
     
     label_name = "Legitimate" if pred_label == 1 else "Phishing"
     true_name = "Legitimate" if true_label == 1 else "Phishing"
     status = "✅" if pred_label == true_label else "❌"
     
-    print(f"  {status} {url[:50]:50} | True: {true_name:10} | Pred: {label_name:10} | Conf: {pred_prob:.3f}")
+    print(f"  {status} {url[:70]:70} | True: {true_name:10} | Pred: {label_name:10} | Conf: {pred_prob:.3f}")
 
-# Save the model and preprocessing objects
-print("\n💾 Saving model and preprocessors...")
+# =========================
+# Save Model and Components
+# =========================
+print("\n💾 Saving model and components...")
 
 model_data = {
     'ensemble': ensemble,
@@ -838,12 +861,78 @@ model_data = {
     'selector': selector,
     'feature_names': common_features,
     'selected_features': selected_features,
-    'selected_feature_names': selected_feature_names
+    'selected_feature_names': selected_feature_names,
+    'feature_extractor': extract_predefined_url_features  # Save the function reference
 }
 
-with open('phishing_model.pkl', 'wb') as f:
+with open('phishing_model_predefined.pkl', 'wb') as f:
     pickle.dump(model_data, f)
 
-print("✅ Model saved as 'phishing_model.pkl'")
-print(f"✅ Model training complete! Final accuracy: {acc_ensemble*100:.1f}%")
-print("🚀 Ready for HTML integration!")
+print("✅ Model saved as 'phishing_model_predefined.pkl'")
+print(f"✅ Training complete! Final accuracy: {accuracy*100:.1f}%")
+print("🚀 Ready for integration with HTML frontend and browser extension!")
+
+# =========================
+# Create Simple Prediction Function for Testing
+# =========================
+def predict_url_phishing(url, model_data):
+    """
+    Simple function to predict if a URL is phishing or legitimate
+    """
+    try:
+        # Extract features
+        features = extract_predefined_url_features(url)
+        feature_df = pd.DataFrame([features])
+        
+        # Ensure all required features are present
+        for col in model_data['feature_names']:
+            if col not in feature_df.columns:
+                feature_df[col] = 0
+        
+        # Reorder columns to match training data
+        feature_df = feature_df[model_data['feature_names']]
+        
+        # Scale features
+        features_scaled = model_data['scaler'].transform(feature_df)
+        
+        # Select features
+        features_selected = model_data['selector'].transform(features_scaled)
+        
+        # Make prediction
+        prediction = model_data['ensemble'].predict(features_selected)[0]
+        probability = model_data['ensemble'].predict_proba(features_selected)[0]
+        
+        return {
+            'prediction': 'Legitimate' if prediction == 1 else 'Phishing',
+            'confidence': float(max(probability)),
+            'phishing_probability': float(probability[0]),
+            'legitimate_probability': float(probability[1])
+        }
+        
+    except Exception as e:
+        return {
+            'prediction': 'Error',
+            'confidence': 0.0,
+            'error': str(e)
+        }
+
+# Test the prediction function
+print("\n🧪 Testing prediction function with sample URLs...")
+
+test_urls = [
+    'https://www.google.com',
+    'http://secure-banking-update.tk/login.php',
+    'https://www.amazon.com/gp/your-account',
+    'http://paypal-verify-account.ml/signin'
+]
+
+print("\nSample predictions:")
+with open('phishing_model_predefined.pkl', 'rb') as f:
+    loaded_model_data = pickle.load(f)
+
+for test_url in test_urls:
+    result = predict_url_phishing(test_url, loaded_model_data)
+    print(f"URL: {test_url}")
+    print(f"Prediction: {result['prediction']} (Confidence: {result['confidence']:.3f})")
+    print(f"Phishing Prob: {result.get('phishing_probability', 0):.3f}, Legitimate Prob: {result.get('legitimate_probability', 0):.3f}")
+    print("-" * 80)

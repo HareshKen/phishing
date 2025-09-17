@@ -124,6 +124,36 @@
             text-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
         }
 
+        .status-indicator {
+            display: inline-block;
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            margin-right: 8px;
+            background: #dc3545;
+            animation: pulse 2s infinite;
+        }
+
+        .status-indicator.connected {
+            background: #28a745;
+        }
+
+        @keyframes pulse {
+            0% { opacity: 1; }
+            50% { opacity: 0.5; }
+            100% { opacity: 1; }
+        }
+
+        .connection-status {
+            text-align: center;
+            margin-bottom: 20px;
+            padding: 10px;
+            border-radius: 8px;
+            background: rgba(255, 255, 255, 0.1);
+            color: rgba(255, 255, 255, 0.9);
+            font-size: 0.9em;
+        }
+
         .input-section {
             margin-bottom: 40px;
             position: relative;
@@ -494,7 +524,12 @@
         <div class="main-card">
             <div class="header">
                 <h1>🛡️ Phishing Detection System</h1>
-                <p>Advanced AI-powered URL analysis to protect you from phishing attacks. Simply enter a URL to check its safety using machine learning algorithms.</p>
+                <p>Advanced AI-powered URL analysis using machine learning to protect you from phishing attacks. Analyzes 87+ features to determine URL safety.</p>
+            </div>
+
+            <div class="connection-status" id="connectionStatus">
+                <span class="status-indicator" id="statusIndicator"></span>
+                <span id="statusText">Connecting to AI model...</span>
             </div>
 
             <div class="input-section">
@@ -503,13 +538,13 @@
                     <input type="text" id="urlInput" class="url-input" placeholder="https://example.com" autocomplete="off">
                 </div>
                 <button onclick="analyzeUrl()" class="analyze-btn" id="analyzeBtn">
-                    🔍 Analyze URL
+                    🔍 Analyze URL with AI
                 </button>
             </div>
 
             <div class="loading" id="loading">
                 <div class="spinner"></div>
-                Analyzing URL with AI models...
+                <div id="loadingText">Processing URL through ML models...</div>
             </div>
 
             <div class="result" id="result">
@@ -518,7 +553,7 @@
 
             <div class="examples">
                 <h3>🧪 Try These Examples</h3>
-                <p>Click on any URL below to test the detection system:</p>
+                <p>Click on any URL below to test the AI detection system:</p>
                 
                 <div class="example-urls">
                     <div class="example-category">
@@ -540,232 +575,57 @@
             </div>
 
             <div class="footer">
-                <p>🤖 Powered by Advanced Machine Learning • Built with ❤️ for Security</p>
+                <p>🤖 Powered by Advanced Machine Learning • Trained on Real Phishing Data</p>
             </div>
         </div>
     </div>
 
     <script>
-        // Simulated ML model for demonstration
-        class PhishingDetector {
-            constructor() {
-                this.features = {
-                    // Suspicious keywords that often appear in phishing URLs
-                    phishingKeywords: [
-                        'verify', 'confirm', 'update', 'secure', 'login', 'account', 
-                        'suspend', 'expire', 'urgent', 'immediate', 'click', 'alert'
-                    ],
-                    
-                    // Suspicious TLDs commonly used by phishers
-                    suspiciousTlds: [
-                        '.tk', '.ml', '.ga', '.cf', '.click', '.download', '.work',
-                        '.loan', '.cricket', '.science', '.party', '.date', '.racing'
-                    ],
-                    
-                    // Legitimate domains
-                    legitimateDomains: [
-                        'google.com', 'amazon.com', 'facebook.com', 'microsoft.com',
-                        'apple.com', 'github.com', 'wikipedia.org', 'youtube.com',
-                        'twitter.com', 'instagram.com', 'linkedin.com', 'paypal.com'
-                    ],
-                    
-                    // URL shorteners
-                    shorteners: [
-                        'bit.ly', 'tinyurl.com', 't.co', 'goo.gl', 'ow.ly',
-                        'short.link', 'is.gd', 'tiny.cc'
-                    ]
-                };
-            }
-            
-            extractFeatures(url) {
-                const features = {};
-                const urlLower = url.toLowerCase();
-                
-                try {
-                    const parsedUrl = new URL(url.startsWith('http') ? url : 'http://' + url);
-                    const domain = parsedUrl.hostname;
-                    const path = parsedUrl.pathname;
-                    const query = parsedUrl.search;
-                    
-                    // Basic features
-                    features.urlLength = url.length;
-                    features.domainLength = domain.length;
-                    features.pathLength = path.length;
-                    features.queryLength = query.length;
-                    
-                    // Security features
-                    features.httpsUsed = url.startsWith('https://') ? 1 : 0;
-                    features.hasPort = domain.includes(':') && !domain.includes('www') ? 1 : 0;
-                    features.hasIp = /\b\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}\b/.test(domain) ? 1 : 0;
-                    
-                    // Character analysis
-                    features.digitCount = (url.match(/\d/g) || []).length;
-                    features.specialCharCount = (url.match(/[^a-zA-Z0-9]/g) || []).length;
-                    features.digitRatio = features.digitCount / url.length;
-                    
-                    // Suspicious patterns
-                    features.phishingKeywords = this.features.phishingKeywords.filter(
-                        keyword => urlLower.includes(keyword)
-                    ).length;
-                    
-                    features.hasSuspiciousTld = this.features.suspiciousTlds.some(
-                        tld => domain.endsWith(tld)
-                    ) ? 1 : 0;
-                    
-                    features.isLegitimateService = this.features.legitimateDomains.some(
-                        legitDomain => domain.includes(legitDomain)
-                    ) ? 1 : 0;
-                    
-                    features.isShortened = this.features.shorteners.some(
-                        shortener => domain.includes(shortener)
-                    ) ? 1 : 0;
-                    
-                    // Domain analysis
-                    const domainParts = domain.split('.');
-                    features.subdomainCount = Math.max(0, domainParts.length - 2);
-                    features.domainEntropy = this.calculateEntropy(domain);
-                    
-                    // Path analysis
-                    features.pathDepth = path.split('/').filter(part => part.length > 0).length;
-                    features.hasSuspiciousPath = /\/(admin|login|secure|verify|confirm|update)/.test(path) ? 1 : 0;
-                    
-                } catch (error) {
-                    // If URL parsing fails, mark as suspicious
-                    features.parsingError = 1;
-                }
-                
-                return features;
-            }
-            
-            calculateEntropy(text) {
-                const freq = {};
-                for (let char of text) {
-                    freq[char] = (freq[char] || 0) + 1;
-                }
-                
-                let entropy = 0;
-                const length = text.length;
-                for (let char in freq) {
-                    const p = freq[char] / length;
-                    entropy -= p * Math.log2(p);
-                }
-                
-                return entropy;
-            }
-            
-            predict(url) {
-                const features = this.extractFeatures(url);
-                let phishingScore = 0;
-                let legitimateScore = 0;
-                const analysis = [];
-                
-                // Scoring logic based on extracted features
-                
-                // URL length analysis
-                if (features.urlLength > 100) {
-                    phishingScore += 15;
-                    analysis.push("⚠️ Very long URL (suspicious)");
-                } else if (features.urlLength > 50) {
-                    phishingScore += 5;
-                    analysis.push("⚠️ Long URL");
-                }
-                
-                // HTTPS check
-                if (features.httpsUsed) {
-                    legitimateScore += 10;
-                    analysis.push("✅ Uses HTTPS");
+        // Configuration
+        const API_BASE_URL = 'http://localhost:5000'; // Change this to your Flask server URL
+        let modelConnected = false;
+
+        // Check backend connection on load
+        window.addEventListener('load', checkBackendConnection);
+
+        async function checkBackendConnection() {
+            try {
+                const response = await fetch(`${API_BASE_URL}/health`, {
+                    method: 'GET',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    timeout: 5000
+                });
+
+                if (response.ok) {
+                    modelConnected = true;
+                    updateConnectionStatus('connected', 'AI Model Connected - Ready for Analysis');
                 } else {
-                    phishingScore += 20;
-                    analysis.push("🔓 No HTTPS (insecure)");
+                    throw new Error('Backend not responding');
                 }
-                
-                // IP address check
-                if (features.hasIp) {
-                    phishingScore += 25;
-                    analysis.push("🚨 Uses IP address instead of domain");
-                }
-                
-                // Suspicious keywords
-                if (features.phishingKeywords > 0) {
-                    phishingScore += features.phishingKeywords * 10;
-                    analysis.push(`🔍 Contains ${features.phishingKeywords} suspicious keyword(s)`);
-                }
-                
-                // TLD analysis
-                if (features.hasSuspiciousTld) {
-                    phishingScore += 20;
-                    analysis.push("⚠️ Uses suspicious top-level domain");
-                }
-                
-                // Legitimate service check
-                if (features.isLegitimateService) {
-                    legitimateScore += 30;
-                    analysis.push("✅ Matches known legitimate service");
-                } else {
-                    // Check for domain spoofing
-                    const domain = url.toLowerCase();
-                    for (let legitDomain of this.features.legitimateDomains) {
-                        if (domain.includes(legitDomain) && !domain.includes(`www.${legitDomain}`) && !domain.includes(`${legitDomain}/`)) {
-                            phishingScore += 25;
-                            analysis.push(`🎭 Possible spoofing of ${legitDomain}`);
-                            break;
-                        }
-                    }
-                }
-                
-                // URL shortener check
-                if (features.isShortened) {
-                    phishingScore += 15;
-                    analysis.push("🔗 Uses URL shortener (hides destination)");
-                }
-                
-                // Subdomain analysis
-                if (features.subdomainCount > 2) {
-                    phishingScore += 10;
-                    analysis.push("🌐 Many subdomains (suspicious)");
-                }
-                
-                // High entropy (random characters)
-                if (features.domainEntropy > 4) {
-                    phishingScore += 15;
-                    analysis.push("🎲 Domain has high randomness");
-                }
-                
-                // Suspicious path
-                if (features.hasSuspiciousPath) {
-                    phishingScore += 10;
-                    analysis.push("📁 Suspicious path detected");
-                }
-                
-                // Calculate final prediction
-                const totalScore = phishingScore + legitimateScore;
-                const phishingProbability = totalScore > 0 ? phishingScore / totalScore : 0;
-                
-                let prediction, confidence;
-                if (phishingProbability > 0.6) {
-                    prediction = 'phishing';
-                    confidence = Math.min(0.95, 0.6 + (phishingProbability - 0.6) * 0.5);
-                } else if (phishingProbability > 0.3) {
-                    prediction = 'warning';
-                    confidence = 0.5 + Math.abs(0.45 - phishingProbability);
-                } else {
-                    prediction = 'legitimate';
-                    confidence = Math.min(0.95, 0.7 + (0.3 - phishingProbability) * 0.5);
-                }
-                
-                return {
-                    prediction,
-                    confidence,
-                    phishingProbability,
-                    analysis,
-                    features
-                };
+            } catch (error) {
+                modelConnected = false;
+                updateConnectionStatus('disconnected', 'AI Model Offline - Using Fallback Analysis');
+                console.warn('Backend connection failed:', error);
             }
         }
-        
-        // Initialize detector
-        const detector = new PhishingDetector();
-        
+
+        function updateConnectionStatus(status, message) {
+            const indicator = document.getElementById('statusIndicator');
+            const statusText = document.getElementById('statusText');
+            
+            if (status === 'connected') {
+                indicator.classList.add('connected');
+                statusText.style.color = 'rgba(40, 167, 69, 0.9)';
+            } else {
+                indicator.classList.remove('connected');
+                statusText.style.color = 'rgba(255, 193, 7, 0.9)';
+            }
+            
+            statusText.textContent = message;
+        }
+
         // Main analysis function
         async function analyzeUrl() {
             const urlInput = document.getElementById('urlInput');
@@ -775,29 +635,234 @@
                 alert('Please enter a URL to analyze');
                 return;
             }
+
+            // Validate URL format
+            if (!isValidUrl(url)) {
+                alert('Please enter a valid URL (e.g., https://example.com)');
+                return;
+            }
             
             // Show loading
-            document.getElementById('loading').style.display = 'block';
-            document.getElementById('result').style.display = 'none';
-            document.getElementById('analyzeBtn').disabled = true;
-            
-            // Simulate network delay for realism
-            await new Promise(resolve => setTimeout(resolve, 1500));
+            showLoading(true);
             
             try {
-                const result = detector.predict(url);
+                let result;
+                
+                if (modelConnected) {
+                    // Use backend ML model
+                    result = await analyzeWithBackend(url);
+                } else {
+                    // Use fallback client-side analysis
+                    result = await analyzeWithFallback(url);
+                }
+                
                 displayResult(url, result);
+                
             } catch (error) {
-                displayError('Error analyzing URL: ' + error.message);
+                console.error('Analysis error:', error);
+                displayError('Error analyzing URL. Please try again.');
             } finally {
-                document.getElementById('loading').style.display = 'none';
-                document.getElementById('analyzeBtn').disabled = false;
+                showLoading(false);
             }
         }
-        
+
+        async function analyzeWithBackend(url) {
+            const loadingText = document.getElementById('loadingText');
+            
+            try {
+                loadingText.textContent = 'Extracting 87+ URL features...';
+                
+                const response = await fetch(`${API_BASE_URL}/predict`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({ url: url }),
+                    timeout: 10000
+                });
+
+                if (!response.ok) {
+                    throw new Error(`Server error: ${response.status}`);
+                }
+
+                loadingText.textContent = 'Running ensemble ML models...';
+                const result = await response.json();
+                
+                loadingText.textContent = 'Finalizing prediction...';
+                
+                return {
+                    prediction: result.prediction.toLowerCase(),
+                    confidence: result.confidence,
+                    phishing_probability: result.phishing_probability,
+                    legitimate_probability: result.legitimate_probability,
+                    analysis: generateAnalysisFromFeatures(result.features || {}),
+                    features: result.features || {},
+                    model_used: 'backend'
+                };
+                
+            } catch (error) {
+                console.error('Backend analysis failed:', error);
+                // Fall back to client-side analysis
+                modelConnected = false;
+                updateConnectionStatus('disconnected', 'AI Model Disconnected - Using Fallback');
+                return await analyzeWithFallback(url);
+            }
+        }
+
+        async function analyzeWithFallback(url) {
+            const loadingText = document.getElementById('loadingText');
+            loadingText.textContent = 'Using fallback analysis...';
+            
+            // Simulate processing time
+            await new Promise(resolve => setTimeout(resolve, 1500));
+            
+            // Basic client-side analysis
+            const features = extractBasicFeatures(url);
+            const prediction = makeBasicPrediction(features);
+            
+            return {
+                prediction: prediction.result,
+                confidence: prediction.confidence,
+                analysis: prediction.analysis,
+                features: features,
+                model_used: 'fallback'
+            };
+        }
+
+        function extractBasicFeatures(url) {
+            const urlLower = url.toLowerCase();
+            const features = {};
+            
+            try {
+                const parsedUrl = new URL(url.startsWith('http') ? url : 'http://' + url);
+                const domain = parsedUrl.hostname;
+                const path = parsedUrl.pathname;
+                
+                features.url_length = url.length;
+                features.domain_length = domain.length;
+                features.https_used = url.startsWith('https://') ? 1 : 0;
+                features.has_ip = /\b\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}\b/.test(domain) ? 1 : 0;
+                features.subdomain_count = Math.max(0, domain.split('.').length - 2);
+                features.path_depth = path.split('/').filter(p => p.length > 0).length;
+                
+                // Suspicious patterns
+                const suspiciousKeywords = ['verify', 'confirm', 'secure', 'login', 'update', 'account'];
+                features.phishing_keywords = suspiciousKeywords.filter(k => urlLower.includes(k)).length;
+                
+                const suspiciousTlds = ['.tk', '.ml', '.ga', '.cf'];
+                features.suspicious_tld = suspiciousTlds.some(tld => domain.endsWith(tld)) ? 1 : 0;
+                
+                features.is_shortened = ['bit.ly', 'tinyurl', 't.co', 'short.link'].some(s => domain.includes(s)) ? 1 : 0;
+                
+            } catch (error) {
+                features.parsing_error = 1;
+            }
+            
+            return features;
+        }
+
+        function makeBasicPrediction(features) {
+            let score = 0;
+            const analysis = [];
+            
+            // Scoring logic
+            if (features.url_length > 100) {
+                score += 20;
+                analysis.push("⚠️ Very long URL detected");
+            }
+            
+            if (!features.https_used) {
+                score += 25;
+                analysis.push("🔓 No HTTPS encryption");
+            } else {
+                analysis.push("✅ Uses HTTPS encryption");
+            }
+            
+            if (features.has_ip) {
+                score += 30;
+                analysis.push("🚨 Uses IP address instead of domain");
+            }
+            
+            if (features.phishing_keywords > 0) {
+                score += features.phishing_keywords * 15;
+                analysis.push(`🔍 Contains ${features.phishing_keywords} suspicious keywords`);
+            }
+            
+            if (features.suspicious_tld) {
+                score += 25;
+                analysis.push("⚠️ Uses suspicious domain extension");
+            }
+            
+            if (features.is_shortened) {
+                score += 20;
+                analysis.push("🔗 Uses URL shortener");
+            }
+            
+            if (features.subdomain_count > 2) {
+                score += 15;
+                analysis.push("🌐 Multiple subdomains detected");
+            }
+            
+            // Determine result
+            let result, confidence;
+            if (score > 50) {
+                result = 'phishing';
+                confidence = Math.min(0.95, 0.6 + (score - 50) / 100);
+            } else if (score > 25) {
+                result = 'warning';
+                confidence = 0.6;
+            } else {
+                result = 'legitimate';
+                confidence = Math.max(0.6, 0.9 - score / 100);
+                if (analysis.length === 1) analysis.push("✅ Basic security checks passed");
+            }
+            
+            return { result, confidence, analysis };
+        }
+
+        function generateAnalysisFromFeatures(features) {
+            const analysis = [];
+            
+            if (features.https_present === 1) {
+                analysis.push("✅ Uses HTTPS encryption");
+            } else {
+                analysis.push("🔓 No HTTPS detected");
+            }
+            
+            if (features.ip === 1) {
+                analysis.push("🚨 Uses IP address instead of domain name");
+            }
+            
+            if (features.phish_hints > 0) {
+                analysis.push(`🔍 Contains ${features.phish_hints} phishing-related keywords`);
+            }
+            
+            if (features.shortening_service === 1) {
+                analysis.push("🔗 Uses URL shortening service");
+            }
+            
+            if (features.suspecious_tld === 1) {
+                analysis.push("⚠️ Uses suspicious top-level domain");
+            }
+            
+            if (features.nb_subdomains > 2) {
+                analysis.push(`🌐 Has ${features.nb_subdomains} subdomains`);
+            }
+            
+            if (features.length_url > 100) {
+                analysis.push("📏 Unusually long URL");
+            }
+            
+            if (features.domain_in_brand === 1) {
+                analysis.push("🎭 Potential brand spoofing detected");
+            }
+            
+            return analysis.length > 0 ? analysis : ["✅ Basic security analysis completed"];
+        }
+
         function displayResult(url, result) {
             const resultDiv = document.getElementById('result');
-            const { prediction, confidence, analysis, features } = result;
+            const { prediction, confidence, analysis, model_used } = result;
             
             resultDiv.className = `result ${prediction}`;
             
@@ -814,23 +879,32 @@
                     title = 'Phishing Detected';
                     description = 'This URL shows strong indicators of being a phishing site. Avoid visiting this link.';
                     break;
-                case 'warning':
+                default: // warning or unknown
                     icon = '⚠️';
                     title = 'Suspicious URL';
                     description = 'This URL has some suspicious characteristics. Exercise caution before visiting.';
                     break;
             }
             
+            const modelBadge = model_used === 'backend' ? 
+                '🤖 AI Model Analysis' : 
+                '🛠️ Fallback Analysis';
+            
+            const confidencePercentage = confidence ? (confidence * 100).toFixed(1) : '0.0';
+            
             resultDiv.innerHTML = `
                 <span class="result-icon">${icon}</span>
                 <h3>${title}</h3>
                 <p>${description}</p>
                 <div class="confidence">
-                    🎯 Confidence: ${(confidence * 100).toFixed(1)}%
+                    🎯 Confidence: ${confidencePercentage}% • ${modelBadge}
                 </div>
                 <div class="features">
                     <h4>🔬 Analysis Details:</h4>
-                    ${analysis.map(item => `<div class="feature-item">${item}</div>`).join('')}
+                    ${analysis && analysis.length > 0 ? 
+                        analysis.map(item => `<div class="feature-item">${item}</div>`).join('') :
+                        '<div class="feature-item">No specific issues detected</div>'
+                    }
                 </div>
             `;
             
@@ -844,8 +918,37 @@
                 <span class="result-icon">❌</span>
                 <h3>Analysis Error</h3>
                 <p>${message}</p>
+                <div class="features">
+                    <div class="feature-item">Please check your internet connection and try again</div>
+                </div>
             `;
             resultDiv.style.display = 'block';
+        }
+
+        function showLoading(show) {
+            const loading = document.getElementById('loading');
+            const result = document.getElementById('result');
+            const analyzeBtn = document.getElementById('analyzeBtn');
+            
+            if (show) {
+                loading.style.display = 'block';
+                result.style.display = 'none';
+                analyzeBtn.disabled = true;
+            } else {
+                loading.style.display = 'none';
+                analyzeBtn.disabled = false;
+            }
+        }
+
+        function isValidUrl(string) {
+            try {
+                // Add protocol if missing
+                const url = string.startsWith('http') ? string : 'http://' + string;
+                new URL(url);
+                return true;
+            } catch (_) {
+                return false;
+            }
         }
         
         function testUrl(url) {
@@ -859,6 +962,13 @@
                 analyzeUrl();
             }
         });
+
+        // Retry connection every 30 seconds if disconnected
+        setInterval(() => {
+            if (!modelConnected) {
+                checkBackendConnection();
+            }
+        }, 30000);
     </script>
 </body>
 </html>

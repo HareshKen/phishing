@@ -1,0 +1,248 @@
+/* Content script styles for phishing detection extension */
+
+/* Animation keyframes */
+@keyframes phishing-slideDown {
+    from {
+        transform: translateY(-100%);
+        opacity: 0;
+    }
+    to {
+        transform: translateY(0);
+        opacity: 1;
+    }
+}
+
+@keyframes phishing-fadeIn {
+    from {
+        opacity: 0;
+        transform: scale(0.95);
+    }
+    to {
+        opacity: 1;
+        transform: scale(1);
+    }
+}
+
+@keyframes phishing-bounceIn {
+    0% {
+        opacity: 0;
+        transform: scale(0.3) translateY(20px);
+    }
+    50% {
+        transform: scale(1.05) translateY(-10px);
+    }
+    100% {
+        opacity: 1;
+        transform: scale(1) translateY(0);
+    }
+}
+
+@keyframes phishing-pulse {
+    0%, 100% {
+        box-shadow: 0 0 0 0 rgba(220, 53, 69, 0.7);
+    }
+    50% {
+        box-shadow: 0 0 0 10px rgba(220, 53, 69, 0);
+    }
+}
+
+@keyframes phishing-shake {
+    0%, 100% { transform: translateX(0); }
+    10%, 30%, 50%, 70%, 90% { transform: translateX(-2px); }
+    20%, 40%, 60%, 80% { transform: translateX(2px); }
+}
+
+/* Warning banner styles */
+#phishing-detector-banner {
+    position: fixed !important;
+    top: 0 !important;
+    left: 0 !important;
+    right: 0 !important;
+    z-index: 999999 !important;
+    animation: phishing-slideDown 0.5s ease-out;
+}
+
+#phishing-detector-caution {
+    position: fixed !important;
+    top: 0 !important;
+    left: 0 !important;
+    right: 0 !important;
+    z-index: 999998 !important;
+    animation: phishing-slideDown 0.5s ease-out;
+}
+
+/* Overlay styles */
+#phishing-detector-overlay {
+    position: fixed !important;
+    top: 0 !important;
+    left: 0 !important;
+    width: 100% !important;
+    height: 100% !important;
+    z-index: 1000000 !important;
+    animation: phishing-fadeIn 0.5s ease-out;
+}
+
+/* Security indicator styles */
+#phishing-detector-indicator {
+    position: fixed !important;
+    bottom: 20px !important;
+    right: 20px !important;
+    z-index: 999997 !important;
+    animation: phishing-bounceIn 0.5s ease-out;
+}
+
+/* Form field highlighting for suspicious sites */
+.phishing-detector-suspicious input[type="password"],
+.phishing-detector-suspicious input[type="email"],
+.phishing-detector-suspicious input[type="text"],
+.phishing-detector-suspicious input[type="tel"] {
+    border: 2px solid #ffc107 !important;
+    box-shadow: 0 0 5px rgba(255, 193, 7, 0.3) !important;
+    animation: phishing-pulse 2s infinite;
+}
+
+.phishing-detector-phishing input[type="password"],
+.phishing-detector-phishing input[type="email"],
+.phishing-detector-phishing input[type="text"],
+.phishing-detector-phishing input[type="tel"] {
+    border: 2px solid #dc3545 !important;
+    box-shadow: 0 0 5px rgba(220, 53, 69, 0.5) !important;
+    animation: phishing-shake 0.5s ease-in-out;
+}
+
+/* Blur effect for phishing sites */
+.phishing-detector-blur {
+    filter: blur(3px) !important;
+    pointer-events: none !important;
+    user-select: none !important;
+}
+
+/* Dark overlay for phishing content */
+.phishing-detector-dark-overlay::before {
+    content: '';
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0, 0, 0, 0.5);
+    z-index: 999995;
+    pointer-events: none;
+}
+
+/* Warning tooltip styles */
+.phishing-detector-tooltip {
+    position: absolute !important;
+    background: #dc3545 !important;
+    color: white !important;
+    padding: 8px 12px !important;
+    border-radius: 4px !important;
+    font-size: 12px !important;
+    font-weight: 600 !important;
+    z-index: 999999 !important;
+    animation: phishing-fadeIn 0.3s ease-out;
+}
+
+.phishing-detector-tooltip::after {
+    content: '';
+    position: absolute;
+    top: 100%;
+    left: 50%;
+    transform: translateX(-50%);
+    border: 5px solid transparent;
+    border-top-color: #dc3545;
+}
+
+/* Button hover effects */
+.phishing-detector-btn {
+    transition: all 0.3s ease !important;
+    cursor: pointer !important;
+}
+
+.phishing-detector-btn:hover {
+    transform: translateY(-2px) !important;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2) !important;
+}
+
+/* Responsive design */
+@media (max-width: 768px) {
+    #phishing-detector-banner div,
+    #phishing-detector-caution div {
+        flex-direction: column !important;
+        gap: 10px !important;
+        text-align: center !important;
+    }
+    
+    #phishing-detector-overlay div {
+        margin: 20px !important;
+        padding: 30px !important;
+    }
+    
+    #phishing-detector-indicator {
+        bottom: 15px !important;
+        right: 15px !important;
+        font-size: 10px !important;
+        padding: 8px 12px !important;
+    }
+}
+
+@media (max-width: 480px) {
+    #phishing-detector-overlay h2 {
+        font-size: 2em !important;
+    }
+    
+    #phishing-detector-overlay p {
+        font-size: 1em !important;
+    }
+    
+    #phishing-detector-overlay div div:last-child {
+        flex-direction: column !important;
+        gap: 10px !important;
+    }
+    
+    #phishing-detector-overlay button {
+        font-size: 1em !important;
+        padding: 10px 20px !important;
+    }
+}
+
+/* High contrast mode support */
+@media (prefers-contrast: high) {
+    #phishing-detector-banner,
+    #phishing-detector-caution {
+        border: 3px solid white !important;
+    }
+    
+    #phishing-detector-overlay {
+        background: rgba(0, 0, 0, 0.9) !important;
+    }
+}
+
+/* Reduced motion support */
+@media (prefers-reduced-motion: reduce) {
+    #phishing-detector-banner,
+    #phishing-detector-caution,
+    #phishing-detector-overlay,
+    #phishing-detector-indicator {
+        animation: none !important;
+    }
+    
+    .phishing-detector-btn {
+        transition: none !important;
+    }
+    
+    .phishing-detector-suspicious input,
+    .phishing-detector-phishing input {
+        animation: none !important;
+    }
+}
+
+/* Print styles */
+@media print {
+    #phishing-detector-banner,
+    #phishing-detector-caution,
+    #phishing-detector-overlay,
+    #phishing-detector-indicator {
+        display: none !important;
+    }
+}

@@ -1,0 +1,505 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Phishing URL Detector</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            width: 420px;
+            min-height: 600px;
+            font-family: 'Segoe UI', -apple-system, BlinkMacSystemFont, sans-serif;
+            background: linear-gradient(135deg, #1e3c72 0%, #2a5298 50%, #667eea 100%);
+            color: white;
+            overflow-x: hidden;
+            position: relative;
+        }
+
+        /* Animated background particles */
+        body::before {
+            content: '';
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-image: radial-gradient(2px 2px at 20px 30px, rgba(255,255,255,0.15), transparent),
+                              radial-gradient(2px 2px at 40px 70px, rgba(255,255,255,0.1), transparent),
+                              radial-gradient(1px 1px at 90px 40px, rgba(255,255,255,0.2), transparent);
+            background-size: 100px 50px;
+            animation: float 20s ease-in-out infinite;
+            z-index: 0;
+        }
+
+        @keyframes float {
+            0%, 100% { transform: translateY(0px) rotate(0deg); }
+            33% { transform: translateY(-15px) rotate(0.5deg); }
+            66% { transform: translateY(-10px) rotate(-0.5deg); }
+        }
+
+        .container {
+            padding: 20px;
+            position: relative;
+            z-index: 1;
+            backdrop-filter: blur(10px);
+        }
+
+        .header {
+            text-align: center;
+            margin-bottom: 25px;
+        }
+
+        .header h1 {
+            font-size: 1.6em;
+            font-weight: 700;
+            margin-bottom: 8px;
+            text-shadow: 0 2px 10px rgba(0, 0, 0, 0.3);
+            animation: glow 2s ease-in-out infinite alternate;
+        }
+
+        @keyframes glow {
+            from { text-shadow: 0 2px 10px rgba(0, 0, 0, 0.3), 0 0 10px rgba(255, 255, 255, 0.1); }
+            to { text-shadow: 0 2px 10px rgba(0, 0, 0, 0.3), 0 0 15px rgba(255, 255, 255, 0.2); }
+        }
+
+        .header p {
+            font-size: 0.85em;
+            opacity: 0.9;
+            line-height: 1.4;
+        }
+
+        .current-site {
+            background: rgba(255, 255, 255, 0.1);
+            backdrop-filter: blur(20px);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            border-radius: 16px;
+            padding: 18px;
+            margin-bottom: 20px;
+            animation: slideIn 0.5s ease-out;
+            box-shadow: 0 10px 20px rgba(0, 0, 0, 0.1);
+        }
+
+        @keyframes slideIn {
+            from {
+                opacity: 0;
+                transform: translateY(20px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .site-info {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            margin-bottom: 12px;
+        }
+
+        .site-icon {
+            font-size: 1.4em;
+            filter: drop-shadow(0 0 5px rgba(255, 255, 255, 0.3));
+        }
+
+        .site-url {
+            font-family: 'Monaco', 'Menlo', monospace;
+            font-size: 0.8em;
+            opacity: 0.8;
+            word-break: break-all;
+            line-height: 1.3;
+            background: rgba(255, 255, 255, 0.1);
+            padding: 8px;
+            border-radius: 8px;
+            margin-top: 8px;
+        }
+
+        .status {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            font-weight: 600;
+            padding: 12px 15px;
+            border-radius: 12px;
+            margin-top: 12px;
+            transition: all 0.3s ease;
+        }
+
+        .status.safe {
+            background: rgba(40, 167, 69, 0.2);
+            border: 1px solid rgba(40, 167, 69, 0.4);
+            box-shadow: 0 5px 15px rgba(40, 167, 69, 0.2);
+        }
+
+        .status.phishing {
+            background: rgba(220, 53, 69, 0.2);
+            border: 1px solid rgba(220, 53, 69, 0.4);
+            box-shadow: 0 5px 15px rgba(220, 53, 69, 0.2);
+            animation: pulse 2s ease-in-out infinite;
+        }
+
+        .status.warning {
+            background: rgba(255, 193, 7, 0.2);
+            border: 1px solid rgba(255, 193, 7, 0.4);
+            box-shadow: 0 5px 15px rgba(255, 193, 7, 0.2);
+        }
+
+        .status.analyzing {
+            background: rgba(255, 255, 255, 0.1);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+        }
+
+        @keyframes pulse {
+            0%, 100% { box-shadow: 0 5px 15px rgba(220, 53, 69, 0.2); }
+            50% { box-shadow: 0 5px 20px rgba(220, 53, 69, 0.4); }
+        }
+
+        .spinner {
+            width: 18px;
+            height: 18px;
+            border: 2px solid rgba(255, 255, 255, 0.3);
+            border-top: 2px solid white;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            filter: drop-shadow(0 0 5px rgba(255, 255, 255, 0.3));
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        .manual-check {
+            margin-bottom: 20px;
+        }
+
+        .manual-check h3 {
+            font-size: 1.1em;
+            margin-bottom: 12px;
+            text-align: center;
+            text-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
+        }
+
+        .url-input {
+            width: 100%;
+            padding: 14px 16px;
+            border: 2px solid rgba(255, 255, 255, 0.2);
+            border-radius: 12px;
+            font-size: 0.9em;
+            background: rgba(255, 255, 255, 0.1);
+            backdrop-filter: blur(10px);
+            color: white;
+            margin-bottom: 12px;
+            transition: all 0.3s ease;
+        }
+
+        .url-input::placeholder {
+            color: rgba(255, 255, 255, 0.5);
+        }
+
+        .url-input:focus {
+            outline: none;
+            border-color: rgba(255, 255, 255, 0.5);
+            box-shadow: 0 0 0 3px rgba(255, 255, 255, 0.1);
+            background: rgba(255, 255, 255, 0.15);
+            transform: translateY(-1px);
+        }
+
+        .analyze-btn {
+            width: 100%;
+            padding: 12px;
+            background: rgba(255, 255, 255, 0.2);
+            backdrop-filter: blur(10px);
+            color: white;
+            border: 2px solid rgba(255, 255, 255, 0.3);
+            border-radius: 12px;
+            font-size: 0.95em;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .analyze-btn::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: -100%;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(90deg, transparent, rgba(255,255,255,0.2), transparent);
+            transition: left 0.5s ease;
+        }
+
+        .analyze-btn:hover {
+            background: rgba(255, 255, 255, 0.25);
+            transform: translateY(-2px);
+            box-shadow: 0 8px 20px rgba(0, 0, 0, 0.2);
+        }
+
+        .analyze-btn:hover::before {
+            left: 100%;
+        }
+
+        .analyze-btn:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        .analysis-result {
+            margin-top: 15px;
+            padding: 18px;
+            border-radius: 16px;
+            animation: slideIn 0.5s ease-out;
+            backdrop-filter: blur(15px);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+        }
+
+        .analysis-result.legitimate {
+            background: linear-gradient(135deg, rgba(40, 167, 69, 0.2), rgba(40, 167, 69, 0.1));
+            border-color: rgba(40, 167, 69, 0.4);
+            box-shadow: 0 10px 25px rgba(40, 167, 69, 0.2);
+        }
+
+        .analysis-result.phishing {
+            background: linear-gradient(135deg, rgba(220, 53, 69, 0.2), rgba(220, 53, 69, 0.1));
+            border-color: rgba(220, 53, 69, 0.4);
+            box-shadow: 0 10px 25px rgba(220, 53, 69, 0.2);
+        }
+
+        .analysis-result.warning {
+            background: linear-gradient(135deg, rgba(255, 193, 7, 0.2), rgba(255, 193, 7, 0.1));
+            border-color: rgba(255, 193, 7, 0.4);
+            box-shadow: 0 10px 25px rgba(255, 193, 7, 0.2);
+        }
+
+        .result-icon {
+            font-size: 2.5em;
+            text-align: center;
+            margin-bottom: 12px;
+            animation: bounce 1s ease-in-out infinite alternate;
+        }
+
+        @keyframes bounce {
+            from { transform: translateY(0); }
+            to { transform: translateY(-5px); }
+        }
+
+        .result-title {
+            font-weight: 700;
+            text-align: center;
+            margin-bottom: 10px;
+            font-size: 1.1em;
+            text-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
+        }
+
+        .result-description {
+            font-size: 0.85em;
+            text-align: center;
+            opacity: 0.9;
+            line-height: 1.5;
+            margin-bottom: 15px;
+        }
+
+        .confidence {
+            background: rgba(255, 255, 255, 0.1);
+            backdrop-filter: blur(10px);
+            padding: 10px;
+            border-radius: 8px;
+            text-align: center;
+            font-size: 0.85em;
+            font-weight: 600;
+            margin-bottom: 15px;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+        }
+
+        .features {
+            margin-top: 15px;
+            background: rgba(255, 255, 255, 0.05);
+            backdrop-filter: blur(10px);
+            padding: 15px;
+            border-radius: 12px;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .features h4 {
+            font-size: 0.9em;
+            margin-bottom: 10px;
+            text-align: center;
+            text-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
+        }
+
+        .feature-item {
+            font-size: 0.78em;
+            padding: 6px 0;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+            opacity: 0.9;
+            line-height: 1.4;
+            transition: all 0.3s ease;
+        }
+
+        .feature-item:hover {
+            opacity: 1;
+            transform: translateX(3px);
+        }
+
+        .feature-item:last-child {
+            border-bottom: none;
+        }
+
+        .settings {
+            margin-top: 25px;
+            padding-top: 20px;
+            border-top: 1px solid rgba(255, 255, 255, 0.2);
+        }
+
+        .settings h3 {
+            font-size: 1em;
+            margin-bottom: 15px;
+            text-align: center;
+            text-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
+        }
+
+        .setting-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 12px;
+            font-size: 0.85em;
+            padding: 8px 0;
+        }
+
+        .toggle {
+            width: 44px;
+            height: 22px;
+            background: rgba(255, 255, 255, 0.2);
+            border-radius: 11px;
+            position: relative;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            border: 1px solid rgba(255, 255, 255, 0.3);
+        }
+
+        .toggle.active {
+            background: rgba(40, 167, 69, 0.6);
+            border-color: rgba(40, 167, 69, 0.8);
+            box-shadow: 0 0 10px rgba(40, 167, 69, 0.3);
+        }
+
+        .toggle::after {
+            content: '';
+            width: 18px;
+            height: 18px;
+            background: white;
+            border-radius: 50%;
+            position: absolute;
+            top: 1px;
+            left: 2px;
+            transition: all 0.3s ease;
+            box-shadow: 0 2px 5px rgba(0, 0, 0, 0.2);
+        }
+
+        .toggle.active::after {
+            left: 22px;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+        }
+
+        .footer {
+            text-align: center;
+            margin-top: 25px;
+            padding-top: 20px;
+            border-top: 1px solid rgba(255, 255, 255, 0.2);
+            font-size: 0.75em;
+            opacity: 0.7;
+            line-height: 1.4;
+        }
+
+        .hidden {
+            display: none;
+        }
+
+        /* Scrollbar styling */
+        ::-webkit-scrollbar {
+            width: 6px;
+        }
+
+        ::-webkit-scrollbar-track {
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 3px;
+        }
+
+        ::-webkit-scrollbar-thumb {
+            background: rgba(255, 255, 255, 0.3);
+            border-radius: 3px;
+        }
+
+        ::-webkit-scrollbar-thumb:hover {
+            background: rgba(255, 255, 255, 0.5);
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🛡️ Phishing Detector</h1>
+            <p>Advanced AI-powered URL security analysis</p>
+        </div>
+
+        <div class="current-site">
+            <div class="site-info">
+                <span class="site-icon">🌐</span>
+                <div>
+                    <div><strong>Current Site Analysis</strong></div>
+                    <div class="site-url" id="currentUrl">Loading...</div>
+                </div>
+            </div>
+            <div class="status analyzing" id="currentStatus">
+                <div class="spinner"></div>
+                <span>Analyzing with AI...</span>
+            </div>
+        </div>
+
+        <div class="manual-check">
+            <h3>🔍 Manual URL Checker</h3>
+            <input type="text" class="url-input" id="manualUrl" placeholder="Enter URL to analyze..." autocomplete="off">
+            <button class="analyze-btn" id="analyzeBtn">🔬 Analyze URL</button>
+            <div class="analysis-result hidden" id="analysisResult">
+                <!-- Results will be populated here -->
+            </div>
+        </div>
+
+        <div class="settings">
+            <h3>⚙️ Protection Settings</h3>
+            <div class="setting-item">
+                <span>🔄 Real-time Protection</span>
+                <div class="toggle active" id="realtimeToggle"></div>
+            </div>
+            <div class="setting-item">
+                <span>🔔 Warning Notifications</span>
+                <div class="toggle active" id="notificationsToggle"></div>
+            </div>
+            <div class="setting-item">
+                <span>🚫 Auto-block Phishing</span>
+                <div class="toggle" id="autoBlockToggle"></div>
+            </div>
+        </div>
+
+        <div class="footer">
+            <p>🤖 Powered by Advanced ML Algorithms</p>
+            <p>Real-time Threat Detection • v1.0.0</p>
+        </div>
+    </div>
+
+    <script src="popup.js"></script>
+</body>
+</html>
