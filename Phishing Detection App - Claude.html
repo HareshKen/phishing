@@ -1,0 +1,692 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Advanced Phishing URL Detection System</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+        }
+
+        .container {
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(10px);
+            border-radius: 20px;
+            padding: 40px;
+            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.1);
+            max-width: 800px;
+            width: 100%;
+            animation: fadeIn 0.6s ease-out;
+        }
+
+        @keyframes fadeIn {
+            from {
+                opacity: 0;
+                transform: translateY(30px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .header {
+            text-align: center;
+            margin-bottom: 40px;
+        }
+
+        .header h1 {
+            color: #2c3e50;
+            font-size: 2.5em;
+            font-weight: 700;
+            margin-bottom: 10px;
+            background: linear-gradient(135deg, #667eea, #764ba2);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+
+        .header p {
+            color: #7f8c8d;
+            font-size: 1.1em;
+            line-height: 1.6;
+        }
+
+        .input-section {
+            margin-bottom: 30px;
+        }
+
+        .input-group {
+            position: relative;
+            margin-bottom: 20px;
+        }
+
+        .input-group label {
+            display: block;
+            color: #2c3e50;
+            font-weight: 600;
+            margin-bottom: 8px;
+            font-size: 1.1em;
+        }
+
+        .url-input {
+            width: 100%;
+            padding: 15px 20px;
+            border: 2px solid #e0e6ed;
+            border-radius: 12px;
+            font-size: 1.1em;
+            transition: all 0.3s ease;
+            background: #f8f9fa;
+        }
+
+        .url-input:focus {
+            outline: none;
+            border-color: #667eea;
+            box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+            background: white;
+        }
+
+        .analyze-btn {
+            width: 100%;
+            padding: 15px;
+            background: linear-gradient(135deg, #667eea, #764ba2);
+            color: white;
+            border: none;
+            border-radius: 12px;
+            font-size: 1.2em;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .analyze-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 25px rgba(102, 126, 234, 0.3);
+        }
+
+        .analyze-btn:active {
+            transform: translateY(0);
+        }
+
+        .analyze-btn:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        .loading {
+            display: none;
+            text-align: center;
+            margin: 20px 0;
+            color: #667eea;
+        }
+
+        .spinner {
+            display: inline-block;
+            width: 20px;
+            height: 20px;
+            border: 3px solid #f3f3f3;
+            border-top: 3px solid #667eea;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin-right: 10px;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        .result {
+            display: none;
+            margin-top: 30px;
+            padding: 25px;
+            border-radius: 15px;
+            animation: slideIn 0.5s ease-out;
+        }
+
+        @keyframes slideIn {
+            from {
+                opacity: 0;
+                transform: translateY(20px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .result.legitimate {
+            background: linear-gradient(135deg, #d4edda, #c3e6cb);
+            border-left: 5px solid #28a745;
+            color: #155724;
+        }
+
+        .result.phishing {
+            background: linear-gradient(135deg, #f8d7da, #f5c6cb);
+            border-left: 5px solid #dc3545;
+            color: #721c24;
+        }
+
+        .result.warning {
+            background: linear-gradient(135deg, #fff3cd, #ffeaa7);
+            border-left: 5px solid #ffc107;
+            color: #856404;
+        }
+
+        .result-icon {
+            font-size: 2em;
+            margin-bottom: 15px;
+            display: block;
+        }
+
+        .result h3 {
+            font-size: 1.5em;
+            margin-bottom: 10px;
+        }
+
+        .result p {
+            font-size: 1.1em;
+            line-height: 1.6;
+            margin-bottom: 15px;
+        }
+
+        .confidence {
+            background: rgba(255, 255, 255, 0.3);
+            padding: 10px 15px;
+            border-radius: 8px;
+            font-weight: 600;
+            margin-bottom: 15px;
+        }
+
+        .features {
+            background: rgba(255, 255, 255, 0.2);
+            padding: 15px;
+            border-radius: 10px;
+            margin-top: 20px;
+        }
+
+        .features h4 {
+            margin-bottom: 10px;
+            color: #2c3e50;
+        }
+
+        .feature-item {
+            padding: 5px 0;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.3);
+            display: flex;
+            justify-content: space-between;
+        }
+
+        .feature-item:last-child {
+            border-bottom: none;
+        }
+
+        .examples {
+            margin-top: 30px;
+            padding: 20px;
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 15px;
+        }
+
+        .examples h3 {
+            color: #2c3e50;
+            margin-bottom: 15px;
+        }
+
+        .example-urls {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 15px;
+            margin-top: 15px;
+        }
+
+        .example-category {
+            padding: 15px;
+            border-radius: 10px;
+            background: white;
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.1);
+        }
+
+        .example-category h4 {
+            color: #2c3e50;
+            margin-bottom: 10px;
+        }
+
+        .example-url {
+            padding: 8px 12px;
+            margin: 5px 0;
+            background: #f8f9fa;
+            border-radius: 6px;
+            font-family: monospace;
+            font-size: 0.9em;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+
+        .example-url:hover {
+            background: #e9ecef;
+            transform: translateX(5px);
+        }
+
+        .safe {
+            border-left: 3px solid #28a745;
+        }
+
+        .dangerous {
+            border-left: 3px solid #dc3545;
+        }
+
+        .footer {
+            text-align: center;
+            margin-top: 30px;
+            padding-top: 20px;
+            border-top: 1px solid #e0e6ed;
+            color: #7f8c8d;
+        }
+
+        @media (max-width: 768px) {
+            .container {
+                padding: 20px;
+                margin: 10px;
+            }
+
+            .header h1 {
+                font-size: 2em;
+            }
+
+            .example-urls {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🛡️ Phishing Detection System</h1>
+            <p>Advanced AI-powered URL analysis to protect you from phishing attacks. Simply enter a URL to check its safety.</p>
+        </div>
+
+        <div class="input-section">
+            <div class="input-group">
+                <label for="urlInput">🔗 Enter URL to analyze:</label>
+                <input type="text" id="urlInput" class="url-input" placeholder="https://example.com" autocomplete="off">
+            </div>
+            <button onclick="analyzeUrl()" class="analyze-btn" id="analyzeBtn">
+                🔍 Analyze URL
+            </button>
+        </div>
+
+        <div class="loading" id="loading">
+            <div class="spinner"></div>
+            Analyzing URL with AI models...
+        </div>
+
+        <div class="result" id="result">
+            <!-- Results will be populated here -->
+        </div>
+
+        <div class="examples">
+            <h3>🧪 Try These Examples</h3>
+            <p>Click on any URL below to test the detection system:</p>
+            
+            <div class="example-urls">
+                <div class="example-category">
+                    <h4>✅ Safe URLs</h4>
+                    <div class="example-url safe" onclick="testUrl('https://www.google.com')">https://www.google.com</div>
+                    <div class="example-url safe" onclick="testUrl('https://www.amazon.com')">https://www.amazon.com</div>
+                    <div class="example-url safe" onclick="testUrl('https://www.github.com')">https://www.github.com</div>
+                    <div class="example-url safe" onclick="testUrl('https://www.wikipedia.org')">https://www.wikipedia.org</div>
+                </div>
+                
+                <div class="example-category">
+                    <h4>⚠️ Suspicious URLs</h4>
+                    <div class="example-url dangerous" onclick="testUrl('http://secure-login-update.com-apple.tk/verify')">http://secure-login-update.com-apple.tk/verify</div>
+                    <div class="example-url dangerous" onclick="testUrl('https://paypal.com.confirm-account.net/login')">https://paypal.com.confirm-account.net/login</div>
+                    <div class="example-url dangerous" onclick="testUrl('http://192.168.1.1/admin.html')">http://192.168.1.1/admin.html</div>
+                    <div class="example-url dangerous" onclick="testUrl('http://bit.ly/3kXyz123')">http://bit.ly/3kXyz123</div>
+                </div>
+            </div>
+        </div>
+
+        <div class="footer">
+            <p>🤖 Powered by Advanced Machine Learning • Built with ❤️ for Security</p>
+        </div>
+    </div>
+
+    <script>
+        // Simulated ML model for demonstration
+        class PhishingDetector {
+            constructor() {
+                this.features = {
+                    // Suspicious keywords that often appear in phishing URLs
+                    phishingKeywords: [
+                        'verify', 'confirm', 'update', 'secure', 'login', 'account', 
+                        'suspend', 'expire', 'urgent', 'immediate', 'click', 'alert'
+                    ],
+                    
+                    // Suspicious TLDs commonly used by phishers
+                    suspiciousTlds: [
+                        '.tk', '.ml', '.ga', '.cf', '.click', '.download', '.work',
+                        '.loan', '.cricket', '.science', '.party', '.date', '.racing'
+                    ],
+                    
+                    // Legitimate domains
+                    legitimateDomains: [
+                        'google.com', 'amazon.com', 'facebook.com', 'microsoft.com',
+                        'apple.com', 'github.com', 'wikipedia.org', 'youtube.com',
+                        'twitter.com', 'instagram.com', 'linkedin.com', 'paypal.com'
+                    ],
+                    
+                    // URL shorteners
+                    shorteners: [
+                        'bit.ly', 'tinyurl.com', 't.co', 'goo.gl', 'ow.ly',
+                        'short.link', 'is.gd', 'tiny.cc'
+                    ]
+                };
+            }
+            
+            extractFeatures(url) {
+                const features = {};
+                const urlLower = url.toLowerCase();
+                
+                try {
+                    const parsedUrl = new URL(url.startsWith('http') ? url : 'http://' + url);
+                    const domain = parsedUrl.hostname;
+                    const path = parsedUrl.pathname;
+                    const query = parsedUrl.search;
+                    
+                    // Basic features
+                    features.urlLength = url.length;
+                    features.domainLength = domain.length;
+                    features.pathLength = path.length;
+                    features.queryLength = query.length;
+                    
+                    // Security features
+                    features.httpsUsed = url.startsWith('https://') ? 1 : 0;
+                    features.hasPort = domain.includes(':') && !domain.includes('www') ? 1 : 0;
+                    features.hasIp = /\b\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}\b/.test(domain) ? 1 : 0;
+                    
+                    // Character analysis
+                    features.digitCount = (url.match(/\d/g) || []).length;
+                    features.specialCharCount = (url.match(/[^a-zA-Z0-9]/g) || []).length;
+                    features.digitRatio = features.digitCount / url.length;
+                    
+                    // Suspicious patterns
+                    features.phishingKeywords = this.features.phishingKeywords.filter(
+                        keyword => urlLower.includes(keyword)
+                    ).length;
+                    
+                    features.hasSuspiciousTld = this.features.suspiciousTlds.some(
+                        tld => domain.endsWith(tld)
+                    ) ? 1 : 0;
+                    
+                    features.isLegitimateService = this.features.legitimateDomains.some(
+                        legitDomain => domain.includes(legitDomain)
+                    ) ? 1 : 0;
+                    
+                    features.isShortened = this.features.shorteners.some(
+                        shortener => domain.includes(shortener)
+                    ) ? 1 : 0;
+                    
+                    // Domain analysis
+                    const domainParts = domain.split('.');
+                    features.subdomainCount = Math.max(0, domainParts.length - 2);
+                    features.domainEntropy = this.calculateEntropy(domain);
+                    
+                    // Path analysis
+                    features.pathDepth = path.split('/').filter(part => part.length > 0).length;
+                    features.hasSuspiciousPath = /\/(admin|login|secure|verify|confirm|update)/.test(path) ? 1 : 0;
+                    
+                } catch (error) {
+                    // If URL parsing fails, mark as suspicious
+                    features.parsingError = 1;
+                }
+                
+                return features;
+            }
+            
+            calculateEntropy(text) {
+                const freq = {};
+                for (let char of text) {
+                    freq[char] = (freq[char] || 0) + 1;
+                }
+                
+                let entropy = 0;
+                const length = text.length;
+                for (let char in freq) {
+                    const p = freq[char] / length;
+                    entropy -= p * Math.log2(p);
+                }
+                
+                return entropy;
+            }
+            
+            predict(url) {
+                const features = this.extractFeatures(url);
+                let phishingScore = 0;
+                let legitimateScore = 0;
+                const analysis = [];
+                
+                // Scoring logic based on extracted features
+                
+                // URL length analysis
+                if (features.urlLength > 100) {
+                    phishingScore += 15;
+                    analysis.push("⚠️ Very long URL (suspicious)");
+                } else if (features.urlLength > 50) {
+                    phishingScore += 5;
+                    analysis.push("⚠️ Long URL");
+                }
+                
+                // HTTPS check
+                if (features.httpsUsed) {
+                    legitimateScore += 10;
+                    analysis.push("✅ Uses HTTPS");
+                } else {
+                    phishingScore += 20;
+                    analysis.push("🔓 No HTTPS (insecure)");
+                }
+                
+                // IP address check
+                if (features.hasIp) {
+                    phishingScore += 25;
+                    analysis.push("🚨 Uses IP address instead of domain");
+                }
+                
+                // Suspicious keywords
+                if (features.phishingKeywords > 0) {
+                    phishingScore += features.phishingKeywords * 10;
+                    analysis.push(`🔍 Contains ${features.phishingKeywords} suspicious keyword(s)`);
+                }
+                
+                // TLD analysis
+                if (features.hasSuspiciousTld) {
+                    phishingScore += 20;
+                    analysis.push("⚠️ Uses suspicious top-level domain");
+                }
+                
+                // Legitimate service check
+                if (features.isLegitimateService) {
+                    legitimateScore += 30;
+                    analysis.push("✅ Matches known legitimate service");
+                } else {
+                    // Check for domain spoofing
+                    const domain = url.toLowerCase();
+                    for (let legitDomain of this.features.legitimateDomains) {
+                        if (domain.includes(legitDomain) && !domain.includes(`www.${legitDomain}`) && !domain.includes(`${legitDomain}/`)) {
+                            phishingScore += 25;
+                            analysis.push(`🎭 Possible spoofing of ${legitDomain}`);
+                            break;
+                        }
+                    }
+                }
+                
+                // URL shortener check
+                if (features.isShortened) {
+                    phishingScore += 15;
+                    analysis.push("🔗 Uses URL shortener (hides destination)");
+                }
+                
+                // Subdomain analysis
+                if (features.subdomainCount > 2) {
+                    phishingScore += 10;
+                    analysis.push("🌐 Many subdomains (suspicious)");
+                }
+                
+                // High entropy (random characters)
+                if (features.domainEntropy > 4) {
+                    phishingScore += 15;
+                    analysis.push("🎲 Domain has high randomness");
+                }
+                
+                // Suspicious path
+                if (features.hasSuspiciousPath) {
+                    phishingScore += 10;
+                    analysis.push("📁 Suspicious path detected");
+                }
+                
+                // Calculate final prediction
+                const totalScore = phishingScore + legitimateScore;
+                const phishingProbability = totalScore > 0 ? phishingScore / totalScore : 0;
+                
+                let prediction, confidence;
+                if (phishingProbability > 0.6) {
+                    prediction = 'phishing';
+                    confidence = Math.min(0.95, 0.6 + (phishingProbability - 0.6) * 0.5);
+                } else if (phishingProbability > 0.3) {
+                    prediction = 'warning';
+                    confidence = 0.5 + Math.abs(0.45 - phishingProbability);
+                } else {
+                    prediction = 'legitimate';
+                    confidence = Math.min(0.95, 0.7 + (0.3 - phishingProbability) * 0.5);
+                }
+                
+                return {
+                    prediction,
+                    confidence,
+                    phishingProbability,
+                    analysis,
+                    features
+                };
+            }
+        }
+        
+        // Initialize detector
+        const detector = new PhishingDetector();
+        
+        // Main analysis function
+        async function analyzeUrl() {
+            const urlInput = document.getElementById('urlInput');
+            const url = urlInput.value.trim();
+            
+            if (!url) {
+                alert('Please enter a URL to analyze');
+                return;
+            }
+            
+            // Show loading
+            document.getElementById('loading').style.display = 'block';
+            document.getElementById('result').style.display = 'none';
+            document.getElementById('analyzeBtn').disabled = true;
+            
+            // Simulate network delay for realism
+            await new Promise(resolve => setTimeout(resolve, 1500));
+            
+            try {
+                const result = detector.predict(url);
+                displayResult(url, result);
+            } catch (error) {
+                displayError('Error analyzing URL: ' + error.message);
+            } finally {
+                document.getElementById('loading').style.display = 'none';
+                document.getElementById('analyzeBtn').disabled = false;
+            }
+        }
+        
+        function displayResult(url, result) {
+            const resultDiv = document.getElementById('result');
+            const { prediction, confidence, analysis, features } = result;
+            
+            resultDiv.className = `result ${prediction}`;
+            
+            let icon, title, description;
+            
+            switch (prediction) {
+                case 'legitimate':
+                    icon = '✅';
+                    title = 'Safe URL';
+                    description = 'This URL appears to be legitimate and safe to visit.';
+                    break;
+                case 'phishing':
+                    icon = '🚨';
+                    title = 'Phishing Detected';
+                    description = 'This URL shows strong indicators of being a phishing site. Avoid visiting this link.';
+                    break;
+                case 'warning':
+                    icon = '⚠️';
+                    title = 'Suspicious URL';
+                    description = 'This URL has some suspicious characteristics. Exercise caution before visiting.';
+                    break;
+            }
+            
+            resultDiv.innerHTML = `
+                <span class="result-icon">${icon}</span>
+                <h3>${title}</h3>
+                <p>${description}</p>
+                <div class="confidence">
+                    🎯 Confidence: ${(confidence * 100).toFixed(1)}%
+                </div>
+                <div class="features">
+                    <h4>🔬 Analysis Details:</h4>
+                    ${analysis.map(item => `<div class="feature-item">${item}</div>`).join('')}
+                </div>
+            `;
+            
+            resultDiv.style.display = 'block';
+        }
+        
+        function displayError(message) {
+            const resultDiv = document.getElementById('result');
+            resultDiv.className = 'result warning';
+            resultDiv.innerHTML = `
+                <span class="result-icon">❌</span>
+                <h3>Analysis Error</h3>
+                <p>${message}</p>
+            `;
+            resultDiv.style.display = 'block';
+        }
+        
+        function testUrl(url) {
+            document.getElementById('urlInput').value = url;
+            analyzeUrl();
+        }
+        
+        // Enable Enter key to submit
+        document.getElementById('urlInput').addEventListener('keypress', function(e) {
+            if (e.key === 'Enter') {
+                analyzeUrl();
+            }
+        });
+        
+        // Auto-focus on input
+        document.getElementById('urlInput').focus();
+    </script>
+</body>
+</html>
